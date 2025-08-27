@@ -1,0 +1,132 @@
+# --- safe_mode.cna -------------------------------------------------
+#
+# safe_mode allows you to block certain commands unless you specifically set safe_mode to off and allow them.
+#
+# Usage in a Beacon tab:
+#   safe_mode                 -> prints current state (0 or 1)
+#   safe_mode set on|off|0|1
+# -------------------------------------------------------------------------
+
+global('$SAFE_MODE');
+$SAFE_MODE = 1;   # default: 1 = ON, 0 = OFF
+
+alias safe_mode {
+    global('$SAFE_MODE');
+    local('$bid'); $bid = $1;
+
+    # No args -> show current state as 0/1
+    if (size(@_) == 1) {
+        berror($bid, "On = 1 and Off = 0");
+        berror($bid, "[safe_mode] " . $SAFE_MODE);
+        return;
+    }
+
+    # Expect: safe_mode set <value>
+    if (size(@_) == 3 && ($2 eq "set" || $2 eq "SET")) {
+        local('$val'); $val = $3;
+
+        if ($val eq "on" || $val eq "1" || $val eq "ON") {
+            $SAFE_MODE = 1;
+            #blog($1, "safe_mode is now set to ON");
+        }
+        else if ($val eq "off" || $val eq "0" || $val eq "OFF") {
+            $SAFE_MODE = 0;
+            #blog($1, "safe_mode is now set to OFF");
+        }
+        else {
+            berror($bid, "Usage: safe_mode set {on|off}");
+            return;
+        }
+
+        # Confirm new state as 0/1
+        blog($bid, "[safe_mode] " . $SAFE_MODE);
+        return;
+    }
+
+    berror($bid, "Usage: safe_mode [set on|off]");
+}
+
+# The shell alias is adapted from the Cobalt Strike 4.8 User Guide
+alias shell {
+    global('$SAFE_MODE');
+    local('$bid');
+    $bid = $1;
+    local('$args');
+    # $0 is the entire command with no parsing... skip "shell " (6)
+    $args = substr($0, 6);
+    bsetenv!($1, "_", $args);
+
+    if ($SAFE_MODE) {
+        berror($bid, "shell is NOT allowed while safe_mode=1. Use: safe_mode set off");
+    } else {
+        beacon_execute_job($1, "%COMSPEC%", " /C %_%", 0);
+    }
+    return;
+
+}
+
+alias powershell {
+    global('$SAFE_MODE');
+    local('$bid $args');
+    $bid = $1;
+    # $0 is the entire command with no parsing... skip "powershell " (11)
+    $args = substr($0, 11);
+    bsetenv!($1, "_", $args);
+
+    if ($SAFE_MODE) {
+        berror($bid, "powershell is NOT allowed while safe_mode=1. Use: safe_mode set off");
+    } else {
+        bpowershell($1, $args);
+    }
+    return;
+
+}
+
+alias pth {
+    global('$SAFE_MODE');
+    local('$bid');
+    $bid = $1;
+    local('$args $acct $hash $domain $user $parts $idx');
+    $args = substr($0, 6);
+    bsetenv!($1, "_", $args);
+
+    $acct  = ("$2");
+    $hash  = ("$3");
+
+    $parts = split("\\\\", $acct);
+    $idx = 0;
+    foreach $part ($parts) {
+        if ($idx == 0) {
+            $domain = $part;
+        } else if ($idx == 1) {
+            $user = $part;
+        }
+        $idx++;
+    }
+
+    if ($SAFE_MODE) {
+        berror($bid, "pth is NOT allowed while safe_mode=1. Use: safe_mode set off");
+    } else {
+        bpassthehash($1, $domain, $user, $hash);
+    }
+    return;
+}
+
+
+beacon_command_register(
+    "safe_mode",
+    "Blocks the execution of certain commands while safe_mode is set to ON, and allows the execution of those commands when safe_mode is set to OFF.",
+    "
+Command: safe_mode
+Summary: This command allows you to show, or set safe_mode.
+         Safe_mode can either be set to either on, or off.
+
+Usage:   safe_mode [set on|off]
+                    set                      - Operator needs to specify on|off.
+
+Example:
+         safe_mode
+         safe_mode set on
+         safe_mode set off
+"
+);
