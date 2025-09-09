@@ -1,0 +1,42 @@
+alias ipchecker {
+	local('$barch $bof_filename $handle $args $ip $p1 $p2 $p3 $p4');
+        $barch  = barch($1);
+
+        if ($2) {
+            $ip = $2;
+            ($p1,$p2,$p3,$p4) = split("\\.", $ip);
+
+            # check to see if there are any non-numerics in the IP Address
+            if (!-isnumber($p1) || !-isnumber($p2) || !-isnumber($p3) || !-isnumber($p4)) {
+                berror($1, "Unknown format for IP address: " . $2);
+                return;
+            }
+
+            # check to see if the IP Address is formatted correctly for IPv4
+            if ((int($p1) >= 1) && (int($p1) <= 255) &&
+            (int($p2) >= 0) && (int($p2) <= 255) &&
+            (int($p3) >= 0) && (int($p3) <= 255) &&
+            (int($p4) >= 0) && (int($p4) <= 255)) {
+                # Valid IP address
+                btask($1, "Valid IP address detected: $2");
+            } else {
+                berror($1, "Invalid IP address: " . $2);
+                return;
+            }
+        }
+
+
+        blog($1, "IP is fine... do other work here!");
+
+}
+
+beacon_command_register(
+    "ipchecker",
+    "checks an IP to ensure it appears valid, but does not check for network or broadcast addresses or loopback.",
+    "
+BOFA Version
+
+Usage: ipchecker <IP Address>
+
+"
+);
